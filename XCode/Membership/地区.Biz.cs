@@ -88,17 +88,8 @@ namespace XCode.Membership
         /// <summary>初始化数据</summary>
         protected internal override void InitData()
         {
-            if (Meta.Session.Count == 0)
-            {
-                if (XTrace.Debug) XTrace.WriteLine("开始初始化Area[地区]数据……");
-
-                //todo 从网站加载数据
-
-                if (XTrace.Debug) XTrace.WriteLine("完成初始化Area[地区]数据！");
-            }
-
             // 预热数据
-            ThreadPoolX.QueueUserWorkItem(() => Preload());
+            if (Meta.Session.Count > 0) ThreadPoolX.QueueUserWorkItem(() => Preload());
         }
         #endregion
 
@@ -133,7 +124,6 @@ namespace XCode.Membership
                                                        });
 
         /// <summary>父级路径</summary>
-        [XmlIgnore, ScriptIgnore]
         public String ParentPath
         {
             get
@@ -146,7 +136,6 @@ namespace XCode.Membership
         }
 
         /// <summary>路径</summary>
-        [XmlIgnore, ScriptIgnore]
         public String Path
         {
             get

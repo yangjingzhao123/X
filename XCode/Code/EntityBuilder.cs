@@ -383,10 +383,6 @@ namespace XCode.Code
 
                     if (!type.IsNullOrEmpty())
                     {
-                        if (!type.Contains("."))
-                        {
-
-                        }
                         if (!type.Contains(".") && conv.GetMethod("To" + type, new Type[] { typeof(Object) }) != null)
                         {
                             switch (type)
@@ -416,8 +412,7 @@ namespace XCode.Code
                             try
                             {
                                 // 特殊支持枚举
-                                var type2 = type.GetTypeEx(false);
-                                if (type2 != null && type2.IsEnum)
+                                if (column.DataType.IsInt())
                                     WriteLine("case \"{0}\": _{0} = ({1})value.ToInt(); break;", column.Name, type);
                                 else
                                     WriteLine("case \"{0}\": _{0} = ({1})value; break;", column.Name, type);
@@ -774,7 +769,11 @@ namespace XCode.Code
                 if (Option.Excludes.Contains(column.ColumnName)) continue;
 
                 // 找到名字映射
-                var dt = AllTables.FirstOrDefault(e => e.PrimaryKeys.Length == 1 && e.PrimaryKeys[0].DataType == column.DataType && (e.Name + e.PrimaryKeys[0].Name).EqualIgnoreCase(column.Name));
+                var dt = AllTables.FirstOrDefault(
+                    e => e.PrimaryKeys.Length == 1 &&
+                    e.PrimaryKeys[0].DataType == column.DataType &&
+                    (e.Name + e.PrimaryKeys[0].Name).EqualIgnoreCase(column.Name));
+
                 if (dt != null)
                 {
                     // 属性名
@@ -794,19 +793,21 @@ namespace XCode.Code
                     // 主字段
                     var master = dt.Master ?? dt.GetColumn("Name");
                     // 扩展属性有可能恰巧跟已有字段同名
-                    if (master != null && !dt.Columns.Any(e => e.Name.EqualIgnoreCase(pname + master.Name)))
+                    if (master != null && !master.PrimaryKey && !dt.Columns.Any(e => e.Name.EqualIgnoreCase(pname + master.Name)))
                     {
                         WriteLine();
                         WriteLine("/// <summary>{0}</summary>", dis);
-                        WriteLine("[XmlIgnore, IgnoreDataMember]");
-                        WriteLine("//[ScriptIgnore]");
-                        if (!dis.IsNullOrEmpty()) WriteLine("[DisplayName(\"{0}\")]", dis);
+                        //WriteLine("[XmlIgnore, IgnoreDataMember]");
+                        //WriteLine("//[ScriptIgnore]");
+                        //if (!dis.IsNullOrEmpty()) WriteLine("[DisplayName(\"{0}\")]", dis);
                         WriteLine("[Map(nameof({0}), typeof({1}), \"{2}\")]", column.Name, dt.Name, pk.Name);
                         if (master.DataType == typeof(String))
                             WriteLine("public {2} {0}{1} => {0}?.{1};", pname, master.Name, master.DataType.Name);
                         else
                             WriteLine("public {2} {0}{1} => {0} != null ? {0}.{1} : 0;", pname, master.Name, master.DataType.Name);
                     }
+
+                    WriteLine();
                 }
             }
 
@@ -976,7 +977,17 @@ namespace XCode.Code
                 WriteLine("/// <returns>实体列表</returns>");
 
                 // 参数部分
-                var pis = cs.Join(", ", dc => $"{dc.DataType.Name} {dc.CamelName()}");
+                //var pis = cs.Join(", ", dc => $"{dc.DataType.Name} {dc.CamelName()}");
+                var pis = new StringBuilder();
+                foreach (var dc in cs)
+                {
+                    if (pis.Length > 0) pis.Append(", ");
+
+                    if (dc.DataType == typeof(Boolean))
+                        pis.Append($"{dc.DataType.Name}? {dc.CamelName()}");
+                    else
+                        pis.Append($"{dc.DataType.Name} {dc.CamelName()}");
+                }
                 var piTime = dcTime == null ? "" : "DateTime start, DateTime end, ";
                 WriteLine("public static IList<{0}> Search({1}, {2}String key, PageParameter page)", returnName, pis, piTime);
                 WriteLine("{");

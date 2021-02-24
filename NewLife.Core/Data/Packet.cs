@@ -8,6 +8,9 @@ using NewLife.Collections;
 namespace NewLife.Data
 {
     /// <summary>数据包</summary>
+    /// <remarks>
+    /// 文档 https://www.yuque.com/smartstone/nx/packet
+    /// </remarks>
     public class Packet
     {
         #region 属性
@@ -45,22 +48,29 @@ namespace NewLife.Data
         {
             if (stream is MemoryStream ms)
             {
-                try
+#if NET46 || __CORE__
+                // 尝试抠了内部存储区，下面代码需要.Net 4.6支持
+                if (ms.TryGetBuffer(out var seg))
                 {
-#if NET46
-                    // 尝试抠了内部存储区，下面代码需要.Net 4.6支持
-                    if (ms.TryGetBuffer(out var seg))
-                        Set(seg.Array, seg.Offset, seg.Count);
-                    else
-#endif
-                    Set(ms.GetBuffer(), (Int32)ms.Position, (Int32)(ms.Length - ms.Position));
-
+                    Set(seg.Array, seg.Offset + (Int32)ms.Position, seg.Count - (Int32)ms.Position);
                     return;
                 }
-                catch (UnauthorizedAccessException) { }
+#endif
+                // GetBuffer窃取内部缓冲区后，无法得知真正的起始位置index，可能导致错误取数
+                // public MemoryStream(byte[] buffer, int index, int count, bool writable, bool publiclyVisible)
+
+                //try
+                //{
+                //    Set(ms.GetBuffer(), (Int32)ms.Position, (Int32)(ms.Length - ms.Position));
+                //}
+                //catch (UnauthorizedAccessException) { }
             }
 
-            Set(stream.ToArray());
+            //Set(stream.ToArray());
+
+            var buf = new Byte[stream.Length - stream.Position];
+            var count = stream.Read(buf, 0, buf.Length);
+            Set(buf, 0, count);
         }
         #endregion
 
@@ -97,15 +107,6 @@ namespace NewLife.Data
                 else
                     Data[p] = value;
                 // 基础类需要严谨给出明确功用，不能模棱两可，因此不能越界
-                //else
-                //{
-                //    //throw new IndexOutOfRangeException();//超出索引下标报错
-                //    Byte[] b;// 或新建一个Pakcet 继续延申数据链,我觉得选择延时比较好,有时候写代码可以偷懒
-                //    b = new Byte[index - Count + 1];
-                //    var pk = new Packet(b);
-                //    Next = pk;
-                //    Next[index - Count] = value;
-                //}
             }
         }
         #endregion
@@ -300,7 +301,6 @@ namespace NewLife.Data
         /// <returns></returns>
         public virtual MemoryStream GetStream()
         {
-            //if (Next == null) return new MemoryStream(Data, Offset, Count, false);
             if (Next == null) return new MemoryStream(Data, Offset, Count, false, true);
 
             var ms = new MemoryStream();

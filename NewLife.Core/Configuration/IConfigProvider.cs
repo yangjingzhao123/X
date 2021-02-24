@@ -12,9 +12,14 @@ namespace NewLife.Configuration
     /// 
     /// 一个配置类，支持从不同持久化提供者读取，可根据需要选择配置持久化策略。
     /// 例如，小系统采用ini/xml/json文件配置，分布式系统采用配置中心。
+    /// 
+    /// 可通过实现IConfigMapping接口来自定义映射配置到模型实例。
     /// </remarks>
     public interface IConfigProvider
     {
+        /// <summary>名称</summary>
+        String Name { get; set; }
+
         /// <summary>所有键</summary>
         ICollection<String> Keys { get; }
 
@@ -32,7 +37,7 @@ namespace NewLife.Configuration
         GetConfigCallback GetConfig { get; }
 
         /// <summary>加载配置到模型</summary>
-        /// <typeparam name="T">模型</typeparam>
+        /// <typeparam name="T">模型。可通过实现IConfigMapping接口来自定义映射配置到模型实例</typeparam>
         /// <param name="path">路径。配置树位置，配置中心等多对象混合使用时</param>
         /// <returns></returns>
         T Load<T>(String path = null) where T : new();
@@ -44,7 +49,7 @@ namespace NewLife.Configuration
         Boolean Save<T>(T model, String path = null);
 
         /// <summary>绑定模型，使能热更新，配置存储数据改变时同步修改模型属性</summary>
-        /// <typeparam name="T">模型</typeparam>
+        /// <typeparam name="T">模型。可通过实现IConfigMapping接口来自定义映射配置到模型实例</typeparam>
         /// <param name="model">模型实例</param>
         /// <param name="autoReload">是否自动更新。默认true</param>
         /// <param name="path">命名空间。配置树位置，配置中心等多对象混合使用时</param>
@@ -58,11 +63,19 @@ namespace NewLife.Configuration
     public class ConfigProvider : DisposeBase, IConfigProvider
     {
         #region 属性
+        /// <summary>名称</summary>
+        public String Name { get; set; }
+
         /// <summary>根元素</summary>
         public IConfigSection Root { get; protected set; } = new ConfigSection { Childs = new List<IConfigSection>() };
 
         /// <summary>所有键</summary>
         public ICollection<String> Keys => Root.Childs.Select(e => e.Key).ToList();
+        #endregion
+
+        #region 构造
+        /// <summary>构造函数</summary>
+        public ConfigProvider() => Name = GetType().Name.TrimEnd("ConfigProvider");
         #endregion
 
         #region 方法
@@ -103,7 +116,7 @@ namespace NewLife.Configuration
         }
 
         /// <summary>加载配置到模型</summary>
-        /// <typeparam name="T">模型</typeparam>
+        /// <typeparam name="T">模型。可通过实现IConfigMapping接口来自定义映射配置到模型实例</typeparam>
         /// <param name="path">路径。配置树位置，配置中心等多对象混合使用时</param>
         /// <returns></returns>
         public virtual T Load<T>(String path = null) where T : new()
@@ -115,7 +128,10 @@ namespace NewLife.Configuration
             if (source == null) return default;
 
             var model = new T();
-            source.MapTo(model);
+            if (model is IConfigMapping map)
+                map.MapConfig(this, source);
+            else
+                source.MapTo(model);
 
             return model;
         }
@@ -141,7 +157,7 @@ namespace NewLife.Configuration
 
         #region 绑定
         /// <summary>绑定模型，使能热更新，配置存储数据改变时同步修改模型属性</summary>
-        /// <typeparam name="T">模型</typeparam>
+        /// <typeparam name="T">模型。可通过实现IConfigMapping接口来自定义映射配置到模型实例</typeparam>
         /// <param name="model">模型实例</param>
         /// <param name="autoReload">是否自动更新。默认true</param>
         /// <param name="path">命名空间。配置树位置，配置中心等多对象混合使用时</param>
@@ -151,7 +167,13 @@ namespace NewLife.Configuration
 
             // 如果有命名空间则使用指定层级数据源
             var source = GetSection(path);
-            source?.MapTo(model);
+            if (source != null)
+            {
+                if (model is IConfigMapping map)
+                    map.MapConfig(this, source);
+                else
+                    source.MapTo(model);
+            }
         }
         #endregion
 

@@ -11,6 +11,8 @@ namespace NewLife.Data
 
     /// <summary>雪花算法。分布式Id</summary>
     /// <remarks>
+    /// 文档 https://www.yuque.com/smartstone/nx/snow_flake
+    /// 
     /// 使用一个 64 bit 的 long 型的数字作为全局唯一 id。在分布式系统中的应用十分广泛，且ID 引入了时间戳，基本上保持自增。
     /// 1bit保留 + 41bit时间戳 + 10bit机器 + 12bit序列号
     /// </remarks>
@@ -40,7 +42,10 @@ namespace NewLife.Data
             {
                 var nodeId = SysConfig.Current.Instance;
                 var pid = Process.GetCurrentProcess().Id;
-                WorkerId = ((nodeId & 0x1F) << 5) | (pid & 0x1F);
+                var tid = Thread.CurrentThread.ManagedThreadId;
+                //WorkerId = ((nodeId & 0x1F) << 5) | (pid & 0x1F);
+                //WorkerId = (nodeId ^ pid ^ tid) & 0x3FF;
+                WorkerId = ((nodeId & 0x1F) << 5) | ((pid ^ tid) & 0x1F);
             }
 
             // 记录此时距离起点的毫秒数以及开机嘀嗒数
